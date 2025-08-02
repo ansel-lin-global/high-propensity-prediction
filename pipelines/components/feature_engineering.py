@@ -1,18 +1,18 @@
 """
 Component: Feature Engineering
 
-📌 Purpose:
+Purpose:
 Use BigQuery SQL to generate features from raw GA4 logs — such as session depth, product views, category diversity,
 event frequency, recency ratios, etc.
 
-🔁 Input:
+Input:
 - Raw event logs (already pre-filtered and split via time_series_split)
 - Stored in BigQuery table: `project.dataset.raw_event_log`
 
-📤 Output:
+Output:
 - Daily updated user-feature table in BigQuery: `project.dataset.user_features_{train_date}`
 
-🛠️ Notes:
+Notes:
 - This step is SQL-based and scheduled in BigQuery via dbt / scheduled query.
 - Features are fetched downstream by Vertex AI components (model training, prediction).
 """
@@ -45,4 +45,4 @@ def run_feature_engineering(train_date: str):
     """
 
     client.query(sql).result()
-    print(f"[✓] Feature table generated for {train_date}")
+    print(f"Feature table generated for {train_date}")
