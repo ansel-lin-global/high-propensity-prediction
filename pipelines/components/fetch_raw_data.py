@@ -1,14 +1,33 @@
-from google.cloud import bigquery
-import pandas as pd
+from kfp.dsl import component, Output, Dataset
 
-def fetch_data(project_id: str, event_table: str, output_path: str):
+@component(
+    base_image='python:3.10',
+    packages_to_install=["google-cloud-bigquery", "pyarrow", "pandas"]
+)
+def fetch_raw_data(
+    project: str,
+    event_table: str,   # e.g., "project.dataset.ga4_events"
+    output_dataset: Output[Dataset]
+):
     """
-    Fetch GA4 user events from BigQuery and save to GCS or local.
-    Only select page_view, add_to_cart, purchase events.
+    Fetch GA4 user events from BigQuery.
+    Select only key behavior events and save as Parquet.
     """
-    # NOTE: Real query omitted due to company NDA
-    query = f"SELECT * FROM `{event_table}` WHERE event_name IN (...)"
-    
-    client = bigquery.Client(project=project_id)
+
+    from google.cloud import bigquery
+    import pandas as pd
+
+    query = f"""
+    SELECT user_pseudo_id, event_name, event_date, event_timestamp
+    FROM `{event_table}`
+    WHERE event_name IN ('page_view', 'add_to_cart', 'purchase')
+    """
+
+    client = bigquery.Client(project=project)
     df = client.query(query).to_dataframe()
-    df.to_csv(output_path, index=False)
+    
+    # Normalize datetime fields (optional)
+    df["event_timestamp"] = pd.to_datetime(df["event_timestamp"], errors="coerce")
+
+    # Save to Parquet for downstream use
+    df.to_parquet(output_dataset.path, index=False)
