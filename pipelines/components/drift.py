@@ -1,11 +1,12 @@
 """
-Vertex AI Component Examples for Drift Detection
+This module defines reusable Vertex AI Pipeline components
+for detecting both data drift and concept drift in deployed ML systems.
 
-Includes:
-- Data Drift Detection via PSI
-- Concept Drift Detection via recall degradation
+All sensitive logic, metrics, and configurations have been sanitized
+for open-source demonstration.
 
-All company-specific logic and identifiers have been sanitized.
+The included components are designed to run regularly (e.g., daily) to monitor
+the stability of model inputs and outputs and trigger retraining logic if needed.
 """
 
 from kfp.dsl import component, Dataset, Input, Output
@@ -87,3 +88,28 @@ def detect_concept_drift_recall_drop(
         "current_recall": [current_val],
         "recall_degradation": [degradation]
     }).to_parquet(output_concept_drift.path, index=False)
+
+# === Not included: other components ===
+# The following drift detection components were part of the original pipeline
+# but are excluded here for brevity and confidentiality:
+#
+# - calculate_baseline_statistics:
+#     Generates baseline distributions for key features from training data,
+#     including histograms, value counts, and statistical summaries.
+#
+# - detect_data_drift:
+#     Compares recent inference data to the training baseline using metrics
+#     such as Population Stability Index (PSI), KS test, or Wasserstein distance.
+#
+# - detect_concept_drift:
+#     Monitors prediction distributions, prediction confidence shifts,
+#     or actual vs. predicted label discrepancies to capture post-deployment drift.
+#
+# - log_drift_metrics_to_bigquery:
+#     Writes daily drift scores and metadata into a BigQuery log table
+#     for monitoring, visualization, and retrain decisioning.
+#
+# All components follow the same conventions: clean input/output typing,
+# scalable design, and full compatibility with Vertex AI Pipelines.
+
+
