@@ -100,6 +100,7 @@ Programmatically launches a Vertex AI Pipeline job for full model training.
 - All Python dependencies are defined in `packages_to_install`.  
 
 For full pipeline orchestration, see:  
-[`pipelines/training_pipeline.py`](../pipelines/training_pipeline.py)  
-[`pipelines/daily_predict_pipeline.py`](../pipelines/daily_predict_pipeline.py)  
-[`pipelines/retrain_pipeline.py`](../pipelines/retrain_pipeline.py)
+[`pipelines/training_pipeline.py`](../training_pipeline.py)  
+[`pipelines/daily_predict_pipeline.py`](../daily_predict_pipeline.py)  
+[`pipelines/drift_pipeline.py`](../drift_pipeline.py)
+[`pipelines/retrain_pipeline.py`](../retrain_pipeline.py)
