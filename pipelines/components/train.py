@@ -8,7 +8,7 @@ for open-source showcasing.
 from kfp.dsl import component, Dataset, Input, Output
 from typing import List
 
-# Example: split_data_by_time_series
+# === Component 1: split_data_by_time_series ===
 @component(
     base_image="python:3.10",
     packages_to_install=["pandas", "scikit-learn", "pyarrow"]
@@ -43,7 +43,7 @@ def split_data_by_time_series(
         pickle.dump(splits, f)
 
 
-# Example: count_total_windows
+# === Component 2: count_total_windows ===
 @component(
     base_image="python:3.10",
     packages_to_install=["pandas"]
@@ -60,23 +60,70 @@ def count_total_windows(
     return list(range(len(splits)))
 
 
-# Other components such as:
+# === Component 3: train_lgb_model ===
+@component(
+    base_image='python:3.10',
+    packages_to_install=['pandas', 'scikit-learn', 'lightgbm', 'joblib', 'pyarrow']
+)
+def train_lgb_model(
+    X_train_path: Input[Dataset],
+    y_train_path: Input[Dataset],
+    X_valid_path: Input[Dataset],
+    y_valid_path: Input[Dataset],
+    cat: Input[Dataset],
+    model_output_path: Output[Dataset]
+):
+    """
+    Train a LightGBM classifier using class weighting and category-aware handling.
+    """
+    import pandas as pd
+    import joblib
+    import json
+    from lightgbm import LGBMClassifier, early_stopping, log_evaluation
+
+    X_train = pd.read_parquet(X_train_path.path)
+    y_train = pd.read_parquet(y_train_path.path).squeeze()
+    X_valid = pd.read_parquet(X_valid_path.path)
+    y_valid = pd.read_parquet(y_valid_path.path).squeeze()
+
+    with open(cat.path, 'r') as f:
+        cat_cols = json.load(f)
+
+    for col in cat_cols:
+        X_train[col] = X_train[col].astype("category")
+        X_valid[col] = X_valid[col].astype("category")
+
+    n_pos = y_train.sum()
+    n_neg = len(y_train) - n_pos
+    scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
+
+    model = LGBMClassifier(
+        n_estimators=300,
+        learning_rate=0.05,
+        num_leaves=64,
+        scale_pos_weight=scale_pos_weight,
+        random_state=42
+    )
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_valid, y_valid)],
+        eval_metric='pr-auc',
+        categorical_feature=cat_cols,
+        callbacks=[early_stopping(30), log_evaluation(0)]
+    )
+
+    joblib.dump(model, model_output_path.path)
+
+
+# === Not included: other components ===
+# The following are part of the original project but excluded for open-source brevity:
 # - extract_window_data
 # - resample_data (undersampling/SMOTE)
 # - preprocess_data (scaling)
-# - train_lgb_model, train_xgb_model, train_catboost_model
+# - train_xgb_model, train_catboost_model
 # - evaluate_model_to_file
 # - merge_and_write_to_bq
 # - summarize_eval_from_bq
 # - export_best_model
-# would follow similar refactoring:
-# - Clear docstrings
-# - Sanitized inputs/outputs
-# - Removed company-specific paths
-# - Focused on composability and transparency
 
-# For brevity, full definitions are modularized in this folder
-# to showcase practical, production-ready ML components.
-
-# See full pipeline logic in pipelines/training_pipeline.py
-# and GitHub README for system diagram and explanation.
+# These follow similar component structure: typed I/O, modular logic, reusable design.
