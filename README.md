@@ -101,9 +101,7 @@ high-propensity-prediction/
 ├── configs/                      
 │   ├── schema.yaml               
 │   └── thresholds.yaml           
-└── docs/                         
-    ├── architecture.md           
-    ├── ops_runbook.md            
+└── docs/                                 
     └── decisions.md              
 
 ```
@@ -118,6 +116,8 @@ high-propensity-prediction/
 
 🔄 Multi-Model Comparison & A/B Testing — experiment design in progress  
 🔄 Uplift Modeling Extension — prototyping with synthetic campaign data  
+
+**📄 For detailed design decisions, see [docs/decisions.md](docs/decisions.md)**  
 
 ---
 
