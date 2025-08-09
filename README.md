@@ -97,10 +97,7 @@ high-propensity-prediction/
 │   └── retrain.py
 ├── scripts/                      
 │   ├── compile_and_package.py
-│   └── submit_pipeline_job.py
-├── configs/                      
-│   ├── schema.yaml               
-│   └── thresholds.yaml           
+│   └── submit_pipeline_job.py    
 └── docs/                                 
     └── decisions.md              
 
