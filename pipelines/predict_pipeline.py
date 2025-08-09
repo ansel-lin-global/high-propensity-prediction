@@ -1,15 +1,25 @@
 """
-Vertex AI Pipeline: Daily Prediction
+Vertex AI Pipeline — Daily Prediction
 
-This pipeline fetches the latest deployed model and applies it
-to fresh data from BigQuery, returning the top-k highest scored users.
+What this pipeline showcases:
+- Load the latest exported model & scaler from GCS
+- Fetch fresh scoring data from BigQuery and compute scores
+- Write top-k results back to BigQuery for activation
+
+Notes:
+- Anonymized for showcase; replace project, tables, bucket, query.
+- Caching is disabled to ensure daily scoring always runs.
+
+Inputs (params):
+- project, export_bucket, top_k
+- daily_predict_query, prediction_output_table
 """
 
 from kfp import dsl
 from kfp.dsl import pipeline
 from components.predict import predict_with_best_model
 
-@pipeline(name="daily-predict-pipeline")
+@pipeline(name="daily-predict-pipeline", description="Score daily data using the latest exported model")
 def daily_predict_pipeline(
     project: str,
     export_bucket: str,
@@ -24,4 +34,4 @@ def daily_predict_pipeline(
         daily_predict_query=daily_predict_query,
         prediction_output_table=prediction_output_table
     )
-    task.set_caching_options(enable_caching=False)
+
