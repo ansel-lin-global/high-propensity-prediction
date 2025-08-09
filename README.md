@@ -84,36 +84,28 @@ This project implements **automatic retraining** triggered by **data or concept 
 
 ```plaintext
 high-propensity-prediction/
-├── pipelines/
+├── README.md                     
+├── pipelines/                    
 │   ├── training_pipeline.py
-│   ├── daily_predict_pipeline.py
-│   ├── retraining_pipeline.py
-│   ├── drift_detection_pipeline.py
-│   └── components/
-│       ├── fetch_raw_data.py
-│       ├── time_series_split.py
-│       ├── feature_engineering.sql
-│       ├── model_training.py
-│       ├── prediction_scoring.py
-│       ├── drift_detection.py
-│       ├── model_monitoring.py
-│       └── retrain.py
-├── compile_and_run/
-│   ├── run_train.py
-│   ├── run_daily_predict.py
-│   ├── run_drift_detection.py
-│   └── run_retrain.py
-├── configs/
-│   ├── schema.yaml
-│   └── thresholds.yaml
-├── .github/
-│   └── workflows/
-│       └── vertex_ai_cicd.yaml
-├── evaluation/
-│   ├── metrics_analysis.py
-│   └── precision_topk_plot.py
-├── requirements.txt
-└── README.md
+│   ├── predict_pipeline.py
+│   ├── drift_pipeline.py
+│   └── retrain_pipeline.py
+├── components/                   
+│   ├── train.py
+│   ├── predict.py
+│   ├── drift.py
+│   └── retrain.py
+├── scripts/                      
+│   ├── compile_and_package.py
+│   └── submit_pipeline_job.py
+├── configs/                      
+│   ├── schema.yaml               
+│   └── thresholds.yaml           
+└── docs/                         
+    ├── architecture.md           
+    ├── ops_runbook.md            
+    └── decisions.md              
+
 ```
 
 ---
