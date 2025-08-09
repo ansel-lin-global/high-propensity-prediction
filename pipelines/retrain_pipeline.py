@@ -1,15 +1,27 @@
+"""
+Vertex AI Pipeline — Conditional Retraining
+
+What this pipeline showcases:
+- Check latest drift summary to decide RETRAIN vs SKIP
+- If RETRAIN: run feature engineering SQL (from GCS template) to materialize training table
+- Trigger the training pipeline with a clean parameter dict (no hard-coded secrets)
+
+Notes:
+- Anonymized and parameterized for showcase; replace table names, buckets, and SQL URI.
+- Demonstrates control-flow with dsl.If and clean hand-off to another pipeline.
+
+Inputs (params):
+- BigQuery: bq_project, raw_data_table, output_table
+- GCS: feature_sql_gcs_uri, training_pipeline_uri, train_bucket
+- Vertex: train_region, service_account, encryption_key
+- Training params: fetch_raw_data_query, date_col, gap, prediction_window, top_k, output_bq_table, selection_metric, gcs_project, export_bucket
+"""
+
 from kfp import dsl
 from kfp.dsl import pipeline
-from components.retrain import (
-    check_drift_decision,
-    run_feature_engineering_sql,
-    trigger_training_pipeline
-)
+from components.retrain import check_drift_decision, run_feature_engineering_sql, trigger_training_pipeline
 
-@pipeline(
-    name="retrain-pipeline",
-    description="Check for drift and retrain model if necessary"
-)
+@pipeline(name="retrain-pipeline", description="Retrain model if drift is detected.")
 def daily_drift_check_and_retrain(
     bq_project: str,
     raw_data_table: str,
@@ -27,14 +39,12 @@ def daily_drift_check_and_retrain(
     top_k: int,
     output_bq_table: str,
     selection_metric: str,
-    export_bucket: str,
-    gcs_project: str
+    gcs_project: str,
+    export_bucket: str
 ):
-    # Step 1: Check drift decision
-    drift_decision = check_drift_decision(project=bq_project)
+    decision = check_drift_decision(project=bq_project)
 
-    with dsl.If(drift_decision.output == "RETRAIN"):
-        # Step 2: Run feature engineering query
+    with dsl.If(decision.output == "RETRAIN"):
         fe = run_feature_engineering_sql(
             project=bq_project,
             raw_data_table=raw_data_table,
@@ -42,7 +52,6 @@ def daily_drift_check_and_retrain(
             feature_sql_gcs_uri=feature_sql_gcs_uri
         )
 
-        # Step 3: Trigger retraining pipeline
         trigger_training_pipeline(
             project=bq_project,
             region=train_region,
