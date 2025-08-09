@@ -92,4 +92,4 @@ These are excluded here for brevity and confidentiality.
   - GCS bucket URIs
   - Service account references
 
-For reusable building blocks, see [`components`](../components).
+For reusable building blocks, see [`components`](components).
