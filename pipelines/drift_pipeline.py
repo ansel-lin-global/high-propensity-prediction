@@ -1,12 +1,14 @@
 """
-Drift Detection Pipelines
+Vertex AI Pipelines — Drift Monitoring (Data & Concept)
 
-This file contains:
-- Data drift detection pipeline (feature importance + PSI, JS, etc.)
-- Concept drift detection pipeline (score/label/recall trend)
-- Combined pipeline for full drift monitoring
+What these pipelines showcase:
+- Data Drift: compare incoming features vs. training baseline (e.g., PSI) and weight by feature importance
+- Concept Drift: monitor recall@k, score distribution, and label rate shifts
+- Full drift monitoring: run both and persist results for decisioning
 
-All pipelines are anonymized and safe for public demonstration.
+Notes:
+- Anonymized for showcase; replace projects, tables, and buckets with your own.
+- Emphasizes modular design: each step is a component; pipelines stitch them into repeatable routines.
 """
 
 from kfp import dsl
@@ -26,8 +28,7 @@ from components.drift import (
     merge_and_evaluate_concept_drift
 )
 
-
-@pipeline(name="drift-analysis-pipeline", description="Data drift pipeline using top-K feature monitoring.")
+@pipeline(name="drift-analysis-pipeline", description="Data drift detection via feature monitoring")
 def run_data_drift_analysis_pipeline(
     bq_project: str,
     train_query: str,
@@ -41,33 +42,17 @@ def run_data_drift_analysis_pipeline(
     psi_bins: int = 10,
     unseen_threshold: float = 0.01
 ):
+    # Fetch baseline (train) and current (predict) feature data
     train_op = fetch_raw_data(project=bq_project, query=train_query)
     predict_op = fetch_raw_data(project=bq_project, query=predict_query)
 
-    model_op = load_latest_model_from_gcs(
-        project=gcs_project,
-        bucket_name=model_bucket,
-        folder_name=model_folder
-    )
+    # Pull latest exported model & feature lists for alignment
+    model_op = load_latest_model_from_gcs(project=gcs_project, bucket_name=model_bucket, folder_name=model_folder)
+    cat_op = load_latest_json_from_gcs(project=gcs_project, bucket_name=model_bucket, folder_name=model_folder, suffix_type="cat")
+    num_op = load_latest_json_from_gcs(project=gcs_project, bucket_name=model_bucket, folder_name=model_folder, suffix_type="numeric")
+    importance_op = extract_feature_importance_from_model(model_file=model_op.outputs["output_model"])
 
-    cat_op = load_latest_json_from_gcs(
-        project=gcs_project,
-        bucket_name=model_bucket,
-        folder_name=model_folder,
-        suffix_type="cat"
-    )
-
-    num_op = load_latest_json_from_gcs(
-        project=gcs_project,
-        bucket_name=model_bucket,
-        folder_name=model_folder,
-        suffix_type="numeric"
-    )
-
-    importance_op = extract_feature_importance_from_model(
-        model_file=model_op.outputs["output_model"]
-    )
-
+    # Detect drift on top-N important features
     drift_op = detect_feature_drift(
         train_data=train_op.outputs["output_dataset"],
         predict_data=predict_op.outputs["output_dataset"],
@@ -79,6 +64,7 @@ def run_data_drift_analysis_pipeline(
         unseen_threshold=unseen_threshold
     )
 
+    # Weight drift by importance & recommend action
     evaluate_op = evaluate_drift_and_retrain(
         importance_data=importance_op.outputs["importance_df"],
         drift_data=drift_op.outputs["drift_result"],
@@ -92,8 +78,7 @@ def run_data_drift_analysis_pipeline(
         write_mode=write_mode
     )
 
-
-@pipeline(name="concept-drift-analysis-pipeline", description="Concept drift pipeline using precision/recall and score trends.")
+@pipeline(name="concept-drift-analysis-pipeline", description="Concept drift detection via performance & score trends")
 def run_concept_drift_analysis_pipeline(
     compare_to_date: str,
     bq_project: str,
@@ -102,6 +87,7 @@ def run_concept_drift_analysis_pipeline(
     table_id: str,
     write_mode: str
 ):
+    # Anchor date is typically "yesterday" in production; simplified here
     anchor_date_op = calculate_anchor_date()
 
     perf_op = compute_model_performance_drift(
@@ -136,8 +122,7 @@ def run_concept_drift_analysis_pipeline(
         write_mode=write_mode
     )
 
-
-@pipeline(name="drift-detection-pipeline", description="Combined pipeline for both data and concept drift detection.")
+@pipeline(name="drift-detection-pipeline", description="Combined data + concept drift monitoring")
 def full_drift_analysis_pipeline(
     bq_project: str,
     train_query: str,
