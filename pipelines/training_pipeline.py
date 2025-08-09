@@ -1,13 +1,19 @@
 """
-Vertex AI Pipelines: Training Pipeline for High Propensity Prediction
+Vertex AI Pipeline — Training (Sliding Windows, Multi-Model)
 
-This pipeline implements a production-grade sliding window framework:
-- Splits input data into rolling windows with a gap to avoid leakage
-- Trains LightGBM, XGBoost, and CatBoost models in parallel for each window
-- Evaluates each model and writes metrics to GCS and BigQuery
-- Selects the best model daily based on a target metric (e.g., PR-AUC)
+What this pipeline showcases:
+- Split data into rolling time windows with a leakage-safe gap
+- Train LightGBM / XGBoost / CatBoost **in parallel** per window
+- Evaluate each model, aggregate metrics to BigQuery, and export the daily best model to GCS
 
-This pipeline is simplified and anonymized for public demonstration.
+Notes for reviewers:
+- This is an anonymized, showcase-only pipeline. Replace placeholders (project, tables, buckets, queries).
+- The pipeline emphasizes orchestration (ParallelFor, If, fan-out/fan-in) and production concerns (schema tracking).
+
+Inputs (params):
+- bq_project, fetch_raw_data_query, date_col, gap, prediction_window
+- k (top-k for evaluation), bq_table (eval sink), selection_metric
+- gcs_project, export_bucket
 """
 
 from kfp import dsl
