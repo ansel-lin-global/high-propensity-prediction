@@ -1,3 +1,7 @@
+![status](https://img.shields.io/badge/status-portfolio-blue)
+![mlops](https://img.shields.io/badge/MLOps-Vertex%20AI%20Pipelines-informational)
+![scope](https://img.shields.io/badge/scope-Drift→Retrain→Deploy-success)
+
 # 🎯 High Propensity Purchase Prediction System
 
 An end-to-end MLOps system to identify high-intent users for e-commerce campaigns — built with Vertex AI Pipelines, automated drift detection, retraining, and integrated CI/CD deployment.
