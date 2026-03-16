@@ -7,11 +7,11 @@ What this pipeline showcases:
 - Trigger the training pipeline with a clean parameter dict (no hard-coded secrets)
 
 Notes:
-- Anonymized and parameterized for showcase; replace table names, buckets, and SQL URI.
+- Sanitized and parameterized for showcase; replace table names, buckets, and SQL URI.
 - Demonstrates control-flow with dsl.If and clean hand-off to another pipeline.
 
 Inputs (params):
-- BigQuery: bq_project, raw_data_table, output_table
+- BigQuery: bq_project, drift_log_table, concept_drift_log_table, raw_data_table, output_table
 - GCS: feature_sql_gcs_uri, training_pipeline_uri, train_bucket
 - Vertex: train_region, service_account, encryption_key
 - Training params: fetch_raw_data_query, date_col, gap, prediction_window, top_k, output_bq_table, selection_metric, gcs_project, export_bucket
@@ -24,6 +24,8 @@ from components.retrain import check_drift_decision, run_feature_engineering_sql
 @pipeline(name="retrain-pipeline", description="Retrain model if drift is detected.")
 def daily_drift_check_and_retrain(
     bq_project: str,
+    drift_log_table: str,
+    concept_drift_log_table: str,
     raw_data_table: str,
     output_table: str,
     feature_sql_gcs_uri: str,
@@ -42,7 +44,11 @@ def daily_drift_check_and_retrain(
     gcs_project: str,
     export_bucket: str
 ):
-    decision = check_drift_decision(project=bq_project)
+    decision = check_drift_decision(
+        project=bq_project,
+        drift_log_table=drift_log_table,
+        concept_drift_log_table=concept_drift_log_table
+    )
 
     with dsl.If(decision.output == "RETRAIN"):
         fe = run_feature_engineering_sql(
@@ -72,3 +78,4 @@ def daily_drift_check_and_retrain(
             },
             encryption_key=encryption_key
         ).after(fe)
+

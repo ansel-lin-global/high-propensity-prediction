@@ -7,26 +7,36 @@ What these pipelines showcase:
 - Full drift monitoring: run both and persist results for decisioning
 
 Notes:
-- Anonymized for showcase; replace projects, tables, and buckets with your own.
+- Sanitized for showcase; replace projects, tables, and buckets with your own.
 - Emphasizes modular design: each step is a component; pipelines stitch them into repeatable routines.
+- Some imported components are NOT included in the published components/ folder.
+  They are kept here to show the full pipeline orchestration.
+  See components/README.md for descriptions.
 """
 
 from kfp import dsl
 from kfp.dsl import pipeline
 
-from components.utils import fetch_raw_data, write_to_bq
+# ── Published components (included in components/drift.py) ──────────────
 from components.drift import (
-    load_latest_model_from_gcs,
-    load_latest_json_from_gcs,
-    extract_feature_importance_from_model,
-    detect_feature_drift,
-    evaluate_drift_and_retrain,
-    calculate_anchor_date,
-    compute_model_performance_drift,
-    compute_prediction_score_drift,
-    compute_label_distribution_drift,
-    merge_and_evaluate_concept_drift
+    detect_data_drift_psi,
+    detect_concept_drift_recall_drop,
 )
+
+# ── Production-only components (not published; see components/README.md) ─
+# from components.utils import fetch_raw_data, write_to_bq
+# from components.drift import (
+#     load_latest_model_from_gcs,
+#     load_latest_json_from_gcs,
+#     extract_feature_importance_from_model,
+#     detect_feature_drift,
+#     evaluate_drift_and_retrain,
+#     calculate_anchor_date,
+#     compute_model_performance_drift,
+#     compute_prediction_score_drift,
+#     compute_label_distribution_drift,
+#     merge_and_evaluate_concept_drift,
+# )
 
 @pipeline(name="drift-analysis-pipeline", description="Data drift detection via feature monitoring")
 def run_data_drift_analysis_pipeline(

@@ -16,22 +16,33 @@ from kfp.dsl import component
     base_image="python:3.10",
     packages_to_install=["google-cloud-bigquery", "pandas"]
 )
-def check_drift_decision(project: str) -> str:
+def check_drift_decision(
+    project: str,
+    drift_log_table: str,
+    concept_drift_log_table: str
+) -> str:
     """
-    Check latest drift logs in BigQuery and return 'RETRAIN' or 'SKIP'
+    Check latest drift logs in BigQuery and return 'RETRAIN' or 'SKIP'.
+
+    Args:
+        project: GCP project ID for BigQuery client.
+        drift_log_table: Fully-qualified BQ table for data-drift logs
+                         (e.g. 'project.dataset.drift_log').
+        concept_drift_log_table: Fully-qualified BQ table for concept-drift logs
+                                  (e.g. 'project.dataset.concept_drift_log').
     """
     from google.cloud import bigquery
     client = bigquery.Client(project=project)
 
-    data_sql = """
+    data_sql = f"""
         SELECT DISTINCT drift_recommendation
-        FROM `your_project.drift_log_table`
-        WHERE drift_check_date = (SELECT MAX(drift_check_date) FROM `your_project.drift_log_table`)
+        FROM `{drift_log_table}`
+        WHERE drift_check_date = (SELECT MAX(drift_check_date) FROM `{drift_log_table}`)
     """
-    concept_sql = """
+    concept_sql = f"""
         SELECT DISTINCT drift_recommendation
-        FROM `your_project.concept_drift_log`
-        WHERE anchor_date = (SELECT MAX(anchor_date) FROM `your_project.concept_drift_log`)
+        FROM `{concept_drift_log_table}`
+        WHERE anchor_date = (SELECT MAX(anchor_date) FROM `{concept_drift_log_table}`)
     """
 
     data_df = client.query(data_sql).to_dataframe()

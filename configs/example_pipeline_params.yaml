@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────
+# Example Pipeline Parameters
+# ─────────────────────────────────────────────────────────────
+# Copy this file and fill in your own values before running.
+# These parameters are passed to Vertex AI Pipeline jobs via
+# scripts/submit_pipeline_job.py or GitHub Actions.
+# ─────────────────────────────────────────────────────────────
+
+# ── GCP Project & Region ─────────────────────────────────────
+bq_project: "<YOUR_GCP_PROJECT_ID>"
+gcs_project: "<YOUR_GCP_PROJECT_ID>"        # Can be the same as bq_project
+region: "us-central1"                        # Vertex AI region
+
+# ── BigQuery Tables ──────────────────────────────────────────
+fetch_raw_data_query: >
+  SELECT *
+  FROM `<YOUR_PROJECT>.<YOUR_DATASET>.train_data`
+  WHERE date <= CURRENT_DATE()
+
+bq_table: "<YOUR_DATASET>.model_eval_result"  # Evaluation result table
+prediction_output_table: "<YOUR_PROJECT>.<YOUR_DATASET>.predictions"
+drift_log_table: "<YOUR_PROJECT>.<YOUR_DATASET>.drift_log"
+concept_drift_log_table: "<YOUR_PROJECT>.<YOUR_DATASET>.concept_drift_log"
+
+# ── GCS Buckets ──────────────────────────────────────────────
+export_bucket: "<YOUR_BUCKET_NAME>"           # For model artifacts
+staging_bucket: "gs://<YOUR_STAGING_BUCKET>"  # For Vertex AI staging
+feature_sql_gcs_uri: "gs://<YOUR_BUCKET>/sql/feature_engineering.sql"
+training_pipeline_uri: "gs://<YOUR_BUCKET>/pipelines/training-pipeline.json"
+
+# ── Training Parameters ─────────────────────────────────────
+date_col: "date"
+gap: 3                    # Days between train end and test start
+prediction_window: 1      # Number of days in test window
+k: 40000                  # Top-K for evaluation metrics
+selection_metric: "recall" # Model selection criterion
+
+# ── Security & Auth ──────────────────────────────────────────
+service_account: "<YOUR_SA>@<YOUR_PROJECT>.iam.gserviceaccount.com"
+encryption_key: ""         # Optional: KMS key for pipeline encryption

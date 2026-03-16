@@ -8,6 +8,16 @@ on:
         required: true
         default: "training"
 
+# ─────────────────────────────────────────────────────────────────
+# NOTE FOR REVIEWERS
+# This workflow is a showcase template. All sensitive values are
+# pulled from GitHub Secrets — no credentials or project IDs are
+# hardcoded in this file. To use this in your own project:
+#   1. Fork the repo
+#   2. Add the required secrets (listed under `env:` below)
+#   3. Trigger manually via workflow_dispatch
+# ─────────────────────────────────────────────────────────────────
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,9 +29,9 @@ jobs:
     env:
       GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
       GCP_REGION:  ${{ secrets.GCP_REGION }}
-      ARTIFACT_BUCKET: ${{ secrets.ARTIFACT_BUCKET }}   # gs://your-staging
-      SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}   # sa@project.iam.gserviceaccount.com
-      KMS_KEY: ${{ secrets.KMS_KEY }}                   # optional: projects/.../cryptoKeys/...
+      ARTIFACT_BUCKET: ${{ secrets.ARTIFACT_BUCKET }}
+      SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+      KMS_KEY: ${{ secrets.KMS_KEY }}
       PIPELINE_NAME: ${{ github.event.inputs.pipeline }}
 
     steps:
@@ -52,7 +62,6 @@ jobs:
       - name: Submit job
         run: |
           echo "Spec: $LATEST_SPEC"
-          # only for demonstrating
           python scripts/submit_pipeline_job.py \
             --project "${GCP_PROJECT}" \
             --region "${GCP_REGION}" \
@@ -62,12 +71,12 @@ jobs:
             --job-display-name "${PIPELINE_NAME}-job" \
             --encryption-key "${KMS_KEY}" \
             --param bq_project=${{ secrets.PARAM_BQ_PROJECT }} \
-            --param fetch_raw_data_query="SELECT * FROM \`your_project.dataset.train_data\` WHERE DATE <= CURRENT_DATE()" \
+            --param fetch_raw_data_query="${{ secrets.FETCH_RAW_DATA_QUERY }}" \
             --param date_col=date \
             --param gap=3 \
             --param prediction_window=1 \
             --param k=40000 \
-            --param bq_table=dataset.model_eval_result \
+            --param bq_table=${{ secrets.PARAM_BQ_TABLE }} \
             --param selection_metric=recall \
             --param gcs_project=${{ secrets.PARAM_GCS_PROJECT }} \
             --param export_bucket=${{ secrets.PARAM_EXPORT_BUCKET }}

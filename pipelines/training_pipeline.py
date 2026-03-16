@@ -7,54 +7,75 @@ What this pipeline showcases:
 - Evaluate each model, aggregate metrics to BigQuery, and export the daily best model to GCS
 
 Notes for reviewers:
-- This is an anonymized, showcase-only pipeline. Replace placeholders (project, tables, buckets, queries).
-- The pipeline emphasizes orchestration (ParallelFor, If, fan-out/fan-in) and production concerns (schema tracking).
-
-Inputs (params):
-- bq_project, fetch_raw_data_query, date_col, gap, prediction_window
-- k (top-k for evaluation), bq_table (eval sink), selection_metric
-- gcs_project, export_bucket
+- This is a sanitized, showcase-only pipeline. All GCP project IDs, table names,
+  and bucket paths must be supplied as pipeline parameters.
+- The pipeline emphasizes orchestration (ParallelFor, If, fan-out/fan-in)
+  and production concerns (schema tracking, model versioning).
+- Some imported components are NOT included in the published components/ folder.
+  They are listed below for structural completeness — see components/README.md
+  for descriptions of each.
 """
 
 from kfp import dsl
 from kfp.dsl import pipeline
 
-from components.utils import fetch_raw_data
+# ── Published components (included in components/train.py) ──────────────
 from components.train import (
     split_data_by_time_series,
     count_total_windows,
-    inspect_schema,
-    store_schema_features,
-    resample_data,
-    preprocess_data,
-    extract_window_data,
     train_lgb_model,
-    train_xgb_model,
-    train_catboost_model,
-    evaluate_model_to_file,
-    merge_and_write_to_bq,
-    summarize_eval_from_bq,
-    export_best_model,
-    model_eval_done,
-    wait_for_all_models
 )
+
+# ── Production-only components (not published; see components/README.md) ─
+# These imports would resolve in the full production codebase.
+# They are kept here to show the complete pipeline orchestration.
+#
+# from components.utils import fetch_raw_data
+# from components.train import (
+#     inspect_schema,
+#     store_schema_features,
+#     resample_data,
+#     preprocess_data,
+#     extract_window_data,
+#     train_xgb_model,
+#     train_catboost_model,
+#     evaluate_model_to_file,
+#     merge_and_write_to_bq,
+#     summarize_eval_from_bq,
+#     export_best_model,
+#     model_eval_done,
+#     wait_for_all_models,
+# )
 
 @pipeline(
     name="training-pipeline",
     description="Train and evaluate multiple models using sliding window cross-validation"
 )
 def training_pipeline(
-    bq_project: str = 'your-gcp-project',
-    fetch_raw_data_query: str = "SELECT * FROM `your_project.dataset.train_data` WHERE date <= CURRENT_DATE()",
-    date_col: str = 'date',
+    bq_project: str = "",          # GCP project for BigQuery operations
+    fetch_raw_data_query: str = "",  # SQL query to fetch training data
+    date_col: str = "date",
     gap: int = 3,
     prediction_window: int = 1,
     k: int = 40000,
-    bq_table: str = "dataset.model_eval_result",
+    bq_table: str = "",            # Destination table for evaluation results
     selection_metric: str = "recall",
-    gcs_project: str = 'your-gcs-project',
-    export_bucket: str = "ml_pipeline_output"
+    gcs_project: str = "",         # GCP project for GCS operations
+    export_bucket: str = "",       # GCS bucket for model artifacts
 ):
+    """
+    End-to-end training pipeline with sliding-window cross-validation.
+
+    This pipeline:
+    1. Fetches raw training data from BigQuery
+    2. Inspects schema and persists feature metadata to GCS
+    3. Creates rolling train/test splits with a configurable gap
+    4. For each window, resamples, preprocesses, and trains 3 models in parallel
+    5. Evaluates all models, selects the best, and exports to GCS
+
+    All parameters must be supplied at runtime — there are no hardcoded
+    project IDs, table names, or bucket paths.
+    """
     # Step 1: Fetch raw data
     raw_data = fetch_raw_data(query=fetch_raw_data_query, project=bq_project)
     raw_data.set_cpu_limit('2')

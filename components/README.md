@@ -1,97 +1,85 @@
 # Components Overview
 
-This folder contains **reusable components** from a real-world [Vertex AI Pipelines](https://cloud.google.com/vertex-ai/docs/pipelines) project for high-propensity prediction.  
+This folder contains **reusable Vertex AI Pipeline components** from a production-grade high-propensity prediction system.
 
-Only a **sanitized subset** of components is published here to demonstrate structure, typed I/O, and modular design.  
-All sensitive queries, table names, and business logic have been removed or replaced with placeholders.
+Only a **sanitized subset** is published to demonstrate structure, typed I/O, and modular design.  
+All sensitive queries, table names, and business logic have been removed or parameterized.
 
 ---
 
 ## ✅ Published Components
 
-### `time_series_split.py`
-Splits time-series data into multiple train/test windows with a configurable gap and prediction period.
+### `train.py`
 
-- **Highlights**:
-  - Accepts a Parquet dataset with a date column
-  - Outputs a pickled list of `(train_idx, test_idx)` per window
-  - Enables sliding-window model training without data leakage
+Contains core training components used in the sliding-window cross-validation pipeline.
 
----
-
-### `count_total_windows.py`
-Reads the split file and returns a list of window indices for iteration.
-
-- **Highlights**:
-  - Works seamlessly with `dsl.ParallelFor` to train on multiple windows in parallel
-  - Outputs a simple list of integers representing window indices
+| Component | Purpose |
+|-----------|---------|
+| `split_data_by_time_series` | Splits time-series data into rolling train/test windows with a configurable gap and prediction period. Outputs a pickled list of `(train_idx, test_idx)` per window. |
+| `count_total_windows` | Reads the split file and returns a list of window indices for iteration with `dsl.ParallelFor`. |
+| `train_lgb_model` | Trains a LightGBM classifier with `scale_pos_weight` for imbalanced data, early stopping, and category-aware handling. |
 
 ---
 
-### `model_training.py`
-Trains a LightGBM classifier with proper handling of imbalanced data and categorical features.
+### `predict.py`
 
-- **Highlights**:
-  - Uses `scale_pos_weight` for imbalance handling
-  - Early stopping to prevent overfitting
-  - Category-aware training using LightGBM native support
+| Component | Purpose |
+|-----------|---------|
+| `predict_with_best_model` | Loads the latest model and scaler from GCS, scores fresh data from BigQuery, and writes top-k predictions. Supports LightGBM, XGBoost, and CatBoost. |
 
 ---
 
-### `prediction_scoring.py`
-Generates predictions using the most recent exported model and writes the top-k predictions to BigQuery.
+### `drift.py`
 
-- **Highlights**:
-  - Automatically detects the latest model and feature schema from GCS
-  - Supports LightGBM, XGBoost, and CatBoost
-  - Outputs ready for business integration (e.g., EDM targeting)
-
----
-
-### `drift_detection.py`
-Checks for **data drift** and **concept drift** by comparing recent inference data with training baselines.
-
-- **Highlights**:
-  - Uses statistical metrics such as PSI and KS tests
-  - Detects shifts in feature distribution and score patterns
-  - Logs results to BigQuery for monitoring and triggering retraining
+| Component | Purpose |
+|-----------|---------|
+| `detect_data_drift_psi` | Computes PSI (Population Stability Index) for a single feature to detect input distribution shifts. |
+| `detect_concept_drift_recall_drop` | Detects concept drift by comparing today's recall@k with the historical average from BigQuery. |
 
 ---
 
-### `run_feature_engineering_sql.py`
-Executes parameterized SQL to generate engineered features in BigQuery.
+### `retrain.py`
 
-- **Highlights**:
-  - Dynamically injects date ranges into the SQL
-  - Materializes a new table with refreshed features
-  - Fully compatible with automated retraining workflows
-
----
-
-## 📦 Not Published (Original Project)
-
-| Component                       | Purpose                                                           |
-|--------------------------------|-------------------------------------------------------------------|
-| `resample_data`                | Undersampling + optional SMOTE for class balancing                |
-| `preprocess_data`              | Applies scaling and prepares categorical variables                |
-| `extract_window_data`          | Extracts X/y splits per window                                    |
-| `train_xgb_model`              | Trains XGBoost model with categorical support                     |
-| `train_catboost_model`         | Trains CatBoost model with Pool API and class weights             |
-| `evaluate_model_to_file`       | Calculates PR-AUC, precision@k, lift; saves results to GCS         |
-| `merge_and_write_to_bq`        | Merges evaluation files and loads them to BigQuery                |
-| `summarize_eval_from_bq`       | Aggregates evaluation metrics across models                       |
-| `export_best_model`            | Selects best model and copies it to GCS                           |
-| `calculate_baseline_statistics`| Builds reference distributions from training features             |
-| `log_drift_metrics_to_bigquery`| Logs drift results for dashboards and audit purposes              |
+| Component | Purpose |
+|-----------|---------|
+| `check_drift_decision` | Queries drift log tables in BigQuery and returns `'RETRAIN'` or `'SKIP'` based on drift severity. |
+| `run_feature_engineering_sql` | Downloads a SQL template from GCS, injects date-range placeholders, and executes as a BigQuery job. |
+| `trigger_training_pipeline` | Launches the full training pipeline on Vertex AI using a compiled pipeline template URI. |
 
 ---
 
-## 💡 Notes
-- All components use `@kfp.dsl.component` for portability and reusability.
-- I/O types use `Input[Dataset]` and `Output[Dataset]` for seamless GCS/Vertex AI integration.
-- Dependencies are declared within each component via `packages_to_install`.
-- For pipeline orchestration examples, see:
-  - [`pipelines/training_pipeline.py`](../training_pipeline.py)
-  - [`pipelines/daily_predict_pipeline.py`](../daily_predict_pipeline.py)
-  - [`pipelines/drift_detection_pipeline.py`](../drift_detection_pipeline.py)
-  - [`pipelines/retraining_pipeline.py`](../retraining_pipeline.py)
+## 📦 Not Published (Production Components)
+
+These components are part of the original production system but excluded for brevity and confidentiality.  
+They follow the same conventions: `@kfp.dsl.component`, typed I/O, and independent dependencies.
+
+| Component | Purpose |
+|-----------|---------|
+| `fetch_raw_data` | Fetches data from BigQuery via parameterized SQL |
+| `inspect_schema` / `store_schema_features` | Detects and persists numeric/categorical feature lists to GCS |
+| `resample_data` | Undersampling + optional SMOTE for class balancing |
+| `preprocess_data` | Applies scaling and prepares categorical variables |
+| `extract_window_data` | Extracts X/y splits per window from the full dataset |
+| `train_xgb_model` | Trains XGBoost model with categorical support |
+| `train_catboost_model` | Trains CatBoost model with Pool API and class weights |
+| `evaluate_model_to_file` | Calculates PR-AUC, precision@k, lift; saves results to GCS |
+| `merge_and_write_to_bq` | Merges evaluation files and loads them to BigQuery |
+| `summarize_eval_from_bq` | Aggregates evaluation metrics across models |
+| `export_best_model` | Selects best model and copies it to GCS |
+| `calculate_baseline_statistics` | Builds reference distributions from training features |
+| `log_drift_metrics_to_bigquery` | Logs drift results for dashboards and audit purposes |
+
+---
+
+## 💡 Design Conventions
+
+- All components use `@kfp.dsl.component` for portability and reusability
+- I/O types use `Input[Dataset]` and `Output[Dataset]` for seamless GCS/Vertex AI integration
+- Dependencies are declared within each component via `packages_to_install`
+- No hardcoded project IDs, table names, or bucket paths — everything is parameterized
+
+For pipeline orchestration examples, see:
+- [`pipelines/training_pipeline.py`](../pipelines/training_pipeline.py)
+- [`pipelines/predict_pipeline.py`](../pipelines/predict_pipeline.py)
+- [`pipelines/drift_pipeline.py`](../pipelines/drift_pipeline.py)
+- [`pipelines/retrain_pipeline.py`](../pipelines/retrain_pipeline.py)
