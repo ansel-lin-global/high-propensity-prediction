@@ -12,15 +12,8 @@ Note: Logic has been sanitized for public demonstration. Some project-specific d
 from kfp.dsl import component
 
 
-@component(
-    base_image="python:3.10",
-    packages_to_install=["google-cloud-bigquery", "pandas"]
-)
-def check_drift_decision(
-    project: str,
-    drift_log_table: str,
-    concept_drift_log_table: str
-) -> str:
+@component(base_image="python:3.10", packages_to_install=["google-cloud-bigquery", "pandas"])
+def check_drift_decision(project: str, drift_log_table: str, concept_drift_log_table: str) -> str:
     """
     Check latest drift logs in BigQuery and return 'RETRAIN' or 'SKIP'.
 
@@ -32,6 +25,7 @@ def check_drift_decision(
                                   (e.g. 'project.dataset.concept_drift_log').
     """
     from google.cloud import bigquery
+
     client = bigquery.Client(project=project)
 
     data_sql = f"""
@@ -54,20 +48,17 @@ def check_drift_decision(
 
 
 @component(
-    base_image="python:3.10",
-    packages_to_install=["google-cloud-bigquery", "google-cloud-storage"]
+    base_image="python:3.10", packages_to_install=["google-cloud-bigquery", "google-cloud-storage"]
 )
 def run_feature_engineering_sql(
-    project: str,
-    raw_data_table: str,
-    output_table: str,
-    feature_sql_gcs_uri: str
+    project: str, raw_data_table: str, output_table: str, feature_sql_gcs_uri: str
 ):
     """
     Download SQL from GCS, replace template variables, and run as BigQuery job.
     """
-    from google.cloud import bigquery, storage
     from datetime import datetime, timedelta
+
+    from google.cloud import bigquery, storage
 
     # Load SQL template
     bucket_name, blob_path = feature_sql_gcs_uri.replace("gs://", "").split("/", 1)
@@ -76,21 +67,19 @@ def run_feature_engineering_sql(
 
     # Replace placeholders
     today = datetime.utcnow().date()
-    sql = sql_template \
-        .replace("{{RAW_DATA_TABLE}}", raw_data_table) \
-        .replace("{{OUTPUT_TABLE}}", output_table) \
-        .replace("{{START_DATE}}", str(today - timedelta(days=30))) \
+    sql = (
+        sql_template.replace("{{RAW_DATA_TABLE}}", raw_data_table)
+        .replace("{{OUTPUT_TABLE}}", output_table)
+        .replace("{{START_DATE}}", str(today - timedelta(days=30)))
         .replace("{{END_DATE}}", str(today - timedelta(days=1)))
+    )
 
     # Execute SQL
     bigquery.Client(project=project).query(sql).result()
     print(f"[FEATURE ENGINEERING] Output to {output_table}")
 
 
-@component(
-    base_image="python:3.10",
-    packages_to_install=["google-cloud-aiplatform[pipelines]"]
-)
+@component(base_image="python:3.10", packages_to_install=["google-cloud-aiplatform[pipelines]"])
 def trigger_training_pipeline(
     project: str,
     region: str,
@@ -98,12 +87,13 @@ def trigger_training_pipeline(
     pipeline_params: dict,
     bucket: str,
     service_account: str,
-    encryption_key: str
+    encryption_key: str,
 ):
     """
     Trigger training pipeline via Vertex AI using pipeline template URI.
     """
     from google.cloud import aiplatform
+
     aiplatform.init(project=project, location=region, staging_bucket=bucket)
 
     job = aiplatform.PipelineJob(
@@ -112,7 +102,7 @@ def trigger_training_pipeline(
         pipeline_root=f"{bucket}/pipeline_root",
         parameter_values=pipeline_params,
         enable_caching=False,
-        encryption_spec_key_name=encryption_key
+        encryption_spec_key_name=encryption_key,
     )
 
     job.run(service_account=service_account, sync=False)

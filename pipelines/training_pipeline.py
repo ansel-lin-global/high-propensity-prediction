@@ -16,15 +16,14 @@ Notes for reviewers:
   for descriptions of each.
 """
 
-from kfp import dsl
-from kfp.dsl import pipeline
-
 # ── Published components (included in components/train.py) ──────────────
 from components.train import (
-    split_data_by_time_series,
     count_total_windows,
+    split_data_by_time_series,
     train_lgb_model,
 )
+from kfp import dsl
+from kfp.dsl import pipeline
 
 # ── Production-only components (not published; see components/README.md) ─
 # These imports would resolve in the full production codebase.
@@ -47,21 +46,22 @@ from components.train import (
 #     wait_for_all_models,
 # )
 
+
 @pipeline(
     name="training-pipeline",
-    description="Train and evaluate multiple models using sliding window cross-validation"
+    description="Train and evaluate multiple models using sliding window cross-validation",
 )
 def training_pipeline(
-    bq_project: str = "",          # GCP project for BigQuery operations
+    bq_project: str = "",  # GCP project for BigQuery operations
     fetch_raw_data_query: str = "",  # SQL query to fetch training data
     date_col: str = "date",
     gap: int = 3,
     prediction_window: int = 1,
     k: int = 40000,
-    bq_table: str = "",            # Destination table for evaluation results
+    bq_table: str = "",  # Destination table for evaluation results
     selection_metric: str = "recall",
-    gcs_project: str = "",         # GCP project for GCS operations
-    export_bucket: str = "",       # GCS bucket for model artifacts
+    gcs_project: str = "",  # GCP project for GCS operations
+    export_bucket: str = "",  # GCS bucket for model artifacts
 ):
     """
     End-to-end training pipeline with sliding-window cross-validation.
@@ -78,8 +78,8 @@ def training_pipeline(
     """
     # Step 1: Fetch raw data
     raw_data = fetch_raw_data(query=fetch_raw_data_query, project=bq_project)
-    raw_data.set_cpu_limit('2')
-    raw_data.set_memory_limit('32Gi')
+    raw_data.set_cpu_limit("2")
+    raw_data.set_memory_limit("32Gi")
 
     # Step 2: Inspect schema and store to GCS
     schema = inspect_schema(input_dataset=raw_data.outputs["output_dataset"])
@@ -87,7 +87,7 @@ def training_pipeline(
         numeric=schema.outputs["numeric"],
         cat=schema.outputs["cat"],
         output_bucket=export_bucket,
-        project=gcs_project
+        project=gcs_project,
     )
 
     # Step 3: Create sliding window splits
@@ -95,7 +95,7 @@ def training_pipeline(
         input_dataset=raw_data.outputs["output_dataset"],
         date_col=date_col,
         gap=gap,
-        prediction_window=prediction_window
+        prediction_window=prediction_window,
     )
     index_list = count_total_windows(splits_path=splits.outputs["output_splits_path"])
 
@@ -106,7 +106,7 @@ def training_pipeline(
             splits_path=splits.outputs["output_splits_path"],
             window_index=window_index,
             numeric=schema.outputs["numeric"],
-            cat=schema.outputs["cat"]
+            cat=schema.outputs["cat"],
         )
 
         resampled = resample_data(
@@ -116,14 +116,14 @@ def training_pipeline(
             cat=schema.outputs["cat"],
             do_smote=False,
             undersample_ratio=0.05,
-            smote_ratio=0.1
+            smote_ratio=0.1,
         )
 
         preprocessed = preprocess_data(
             X_train_path=resampled.outputs["X_res_path"],
             X_test_path=window_data.outputs["X_test_path"],
             numeric=schema.outputs["numeric"],
-            cat=schema.outputs["cat"]
+            cat=schema.outputs["cat"],
         )
 
         done_signals = []
@@ -136,7 +136,7 @@ def training_pipeline(
                     y_train_path=resampled.outputs["y_res_path"],
                     X_valid_path=preprocessed.outputs["X_test_scaled_path"],
                     y_valid_path=window_data.outputs["y_test_path"],
-                    cat=schema.outputs["cat"]
+                    cat=schema.outputs["cat"],
                 )
             with dsl.If(model_type == "xgb"):
                 train = train_xgb_model(
@@ -144,7 +144,7 @@ def training_pipeline(
                     y_train_path=resampled.outputs["y_res_path"],
                     X_valid_path=preprocessed.outputs["X_test_scaled_path"],
                     y_valid_path=window_data.outputs["y_test_path"],
-                    cat=schema.outputs["cat"]
+                    cat=schema.outputs["cat"],
                 )
             with dsl.If(model_type == "catboost"):
                 train = train_catboost_model(
@@ -152,7 +152,7 @@ def training_pipeline(
                     y_train_path=resampled.outputs["y_res_path"],
                     X_valid_path=preprocessed.outputs["X_test_scaled_path"],
                     y_valid_path=window_data.outputs["y_test_path"],
-                    cat=schema.outputs["cat"]
+                    cat=schema.outputs["cat"],
                 )
 
             eval_model = evaluate_model_to_file(
@@ -164,7 +164,7 @@ def training_pipeline(
                 k=k,
                 model_type=model_type,
                 window_index=window_index,
-                bucket_name=export_bucket
+                bucket_name=export_bucket,
             ).after(train)
 
             done = model_eval_done(model_type=model_type).after(eval_model)
@@ -177,20 +177,15 @@ def training_pipeline(
 
     # Step 7: Aggregate evaluation results and export best model
     merged = merge_and_write_to_bq(
-        result_root_path=f'/gcs/{export_bucket}/eval_results',
-        project=bq_project,
-        bq_table=bq_table
+        result_root_path=f"/gcs/{export_bucket}/eval_results", project=bq_project, bq_table=bq_table
     ).after(wait)
 
-    summarized = summarize_eval_from_bq(
-        project=bq_project,
-        bq_table=bq_table
-    ).after(merged)
+    summarized = summarize_eval_from_bq(project=bq_project, bq_table=bq_table).after(merged)
 
     export_best_model(
         project=bq_project,
         bq_table=bq_table,
         selection_metric=selection_metric,
         gcs_project=gcs_project,
-        export_bucket=export_bucket
+        export_bucket=export_bucket,
     ).after(summarized)

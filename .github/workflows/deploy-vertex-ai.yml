@@ -1,47 +1,87 @@
 name: Deploy Vertex AI Pipeline
 
-on:
-  workflow_dispatch:
-    inputs:
-      pipeline:
-        description: "Which pipeline to deploy (training|predict|drift-data|drift-concept|drift-full|retrain)"
-        required: true
-        default: "training"
-
 # ─────────────────────────────────────────────────────────────────
 # NOTE FOR REVIEWERS
 # This workflow is a showcase template. All sensitive values are
 # pulled from GitHub Secrets — no credentials or project IDs are
 # hardcoded in this file. To use this in your own project:
 #   1. Fork the repo
-#   2. Add the required secrets (listed under `env:` below)
-#   3. Trigger manually via workflow_dispatch
+#   2. Add the required secrets listed in .env.example
+#   3. Trigger manually via Actions → Deploy Vertex AI Pipeline → Run workflow
 # ─────────────────────────────────────────────────────────────────
 
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline:
+        description: "Pipeline to deploy"
+        required: true
+        default: training
+        type: choice
+        options:
+          - training
+          - predict
+          - drift-data
+          - drift-concept
+          - drift-full
+          - retrain
+
+# Prevent two deploys of the same pipeline from running simultaneously.
+concurrency:
+  group: deploy-${{ github.event.inputs.pipeline }}
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  # ── Job 1: Compile the selected pipeline to a JSON spec ──────────
+  compile:
+    name: Compile — ${{ github.event.inputs.pipeline }}
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     permissions:
-      id-token: write
-      contents: read
-
-    env:
-      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
-      GCP_REGION:  ${{ secrets.GCP_REGION }}
-      ARTIFACT_BUCKET: ${{ secrets.ARTIFACT_BUCKET }}
-      SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
-      KMS_KEY: ${{ secrets.KMS_KEY }}
-      PIPELINE_NAME: ${{ github.event.inputs.pipeline }}
+      contents: read          # no GCP calls needed at compile time
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync          # installs from uv.lock; no ML extras needed for compilation
+
+      - name: Compile pipeline spec
+        run: |
+          uv run python scripts/compile_and_package.py \
+            --only "${{ github.event.inputs.pipeline }}" \
+            --out-dir artifacts
+
+      - name: Upload compiled spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-spec-${{ github.event.inputs.pipeline }}
+          path: artifacts/
+          retention-days: 7
+
+  # ── Job 2: Submit the compiled spec to Vertex AI ─────────────────
+  submit:
+    name: Submit — ${{ github.event.inputs.pipeline }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: compile
+    permissions:
+      id-token: write         # required for Workload Identity Federation
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
 
       - name: Auth to Google Cloud (Workload Identity)
         uses: google-github-actions/auth@v2
@@ -49,34 +89,37 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.DEPLOYER_SA }}
 
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install kfp "google-cloud-aiplatform[pipelines]" google-cloud-storage google-cloud-bigquery
+      - name: Download compiled spec
+        uses: actions/download-artifact@v4
+        with:
+          name: pipeline-spec-${{ github.event.inputs.pipeline }}
+          path: artifacts/
 
-      - name: Compile pipeline(s)
+      - name: Submit pipeline job
+        env:
+          GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+          ARTIFACT_BUCKET: ${{ secrets.ARTIFACT_BUCKET }}
+          SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+          KMS_KEY: ${{ secrets.KMS_KEY }}
         run: |
-          python scripts/compile_and_package.py --only "${PIPELINE_NAME}" --out-dir artifacts
-          echo "LATEST_SPEC=$(ls -t artifacts/${PIPELINE_NAME}-*.json | head -n 1)" >> $GITHUB_ENV
-
-      - name: Submit job
-        run: |
-          echo "Spec: $LATEST_SPEC"
-          python scripts/submit_pipeline_job.py \
+          SPEC=$(ls artifacts/${{ github.event.inputs.pipeline }}-*.json | head -n 1)
+          echo "Submitting spec: $SPEC"
+          uv run python scripts/submit_pipeline_job.py \
             --project "${GCP_PROJECT}" \
             --region "${GCP_REGION}" \
             --staging-bucket "${ARTIFACT_BUCKET}" \
             --service-account "${SERVICE_ACCOUNT}" \
-            --pipeline-spec "${LATEST_SPEC}" \
-            --job-display-name "${PIPELINE_NAME}-job" \
+            --pipeline-spec "${SPEC}" \
+            --job-display-name "${{ github.event.inputs.pipeline }}-job" \
             --encryption-key "${KMS_KEY}" \
-            --param bq_project=${{ secrets.PARAM_BQ_PROJECT }} \
+            --param bq_project="${{ secrets.PARAM_BQ_PROJECT }}" \
             --param fetch_raw_data_query="${{ secrets.FETCH_RAW_DATA_QUERY }}" \
             --param date_col=date \
             --param gap=3 \
             --param prediction_window=1 \
             --param k=40000 \
-            --param bq_table=${{ secrets.PARAM_BQ_TABLE }} \
+            --param bq_table="${{ secrets.PARAM_BQ_TABLE }}" \
             --param selection_metric=recall \
-            --param gcs_project=${{ secrets.PARAM_GCS_PROJECT }} \
-            --param export_bucket=${{ secrets.PARAM_EXPORT_BUCKET }}
+            --param gcs_project="${{ secrets.PARAM_GCS_PROJECT }}" \
+            --param export_bucket="${{ secrets.PARAM_EXPORT_BUCKET }}"

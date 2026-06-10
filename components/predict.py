@@ -9,30 +9,40 @@ All sensitive paths and logic have been anonymized for open-source demonstration
 """
 
 from kfp.dsl import component
-from typing import List
+
 
 @component(
     base_image="python:3.10",
     packages_to_install=[
-        'pandas', 'joblib', 'google-cloud-bigquery', 'google-cloud-storage',
-        'google-cloud-bigquery-storage', 'scikit-learn',
-        'catboost', 'lightgbm', 'xgboost', 'db-dtypes'
-    ]
+        "pandas",
+        "joblib",
+        "google-cloud-bigquery",
+        "google-cloud-storage",
+        "google-cloud-bigquery-storage",
+        "scikit-learn",
+        "catboost",
+        "lightgbm",
+        "xgboost",
+        "db-dtypes",
+    ],
 )
 def predict_with_best_model(
     project: str,
     export_bucket: str,
     top_k: int,
     daily_predict_query: str,
-    prediction_output_table: str
+    prediction_output_table: str,
 ):
     """
     Applies the latest trained model to fresh data and writes top-k scored results to BigQuery.
     """
-    import pandas as pd
-    import joblib, io, json, re
+    import io
+    import json
+    import re
     from datetime import datetime
-    from google.cloud import bigquery, storage, bigquery_storage
+
+    import joblib
+    from google.cloud import bigquery, bigquery_storage, storage
 
     # Load latest model and scaler from GCS
     prefix = export_bucket.split("/", 1)[1] if "/" in export_bucket else ""
@@ -41,7 +51,11 @@ def predict_with_best_model(
     bucket = storage_client.bucket(bucket_name)
     blobs = list(bucket.list_blobs(prefix=prefix))
 
-    model_pattern = re.compile(rf"{prefix}/(\d{{4}}-\d{{2}}-\d{{2}})_(.+)_model\.pkl" if prefix else r"(\d{4}-\d{2}-\d{2})_(.+)_model\.pkl")
+    model_pattern = re.compile(
+        rf"{prefix}/(\d{{4}}-\d{{2}}-\d{{2}})_(.+)_model\.pkl"
+        if prefix
+        else r"(\d{4}-\d{2}-\d{2})_(.+)_model\.pkl"
+    )
     latest_date = datetime.min
     latest_model_blob, latest_model_type = None, None
 
@@ -75,8 +89,12 @@ def predict_with_best_model(
             date = datetime.strptime(match.group(1), "%Y-%m-%d")
             if date > feature_date:
                 feature_date = date
-                numeric_cols = json.loads(bucket.blob(blob.name.replace("cat", "numeric")).download_as_text())
-                cat_cols = json.loads(bucket.blob(blob.name.replace("numeric", "cat")).download_as_text())
+                numeric_cols = json.loads(
+                    bucket.blob(blob.name.replace("cat", "numeric")).download_as_text()
+                )
+                cat_cols = json.loads(
+                    bucket.blob(blob.name.replace("numeric", "cat")).download_as_text()
+                )
 
     # Preprocess features
     df_scaled = df.copy()
@@ -100,7 +118,7 @@ def predict_with_best_model(
     bq_client.load_table_from_dataframe(
         df_top_k[["user_pseudo_id", "score", "predict_date"]],
         prediction_output_table,
-        job_config=job_config
+        job_config=job_config,
     ).result()
 
     print(f"Top-{top_k} predictions written to {prediction_output_table}")

@@ -17,9 +17,14 @@ Inputs (params):
 - Training params: fetch_raw_data_query, date_col, gap, prediction_window, top_k, output_bq_table, selection_metric, gcs_project, export_bucket
 """
 
+from components.retrain import (
+    check_drift_decision,
+    run_feature_engineering_sql,
+    trigger_training_pipeline,
+)
 from kfp import dsl
 from kfp.dsl import pipeline
-from components.retrain import check_drift_decision, run_feature_engineering_sql, trigger_training_pipeline
+
 
 @pipeline(name="retrain-pipeline", description="Retrain model if drift is detected.")
 def daily_drift_check_and_retrain(
@@ -42,12 +47,12 @@ def daily_drift_check_and_retrain(
     output_bq_table: str,
     selection_metric: str,
     gcs_project: str,
-    export_bucket: str
+    export_bucket: str,
 ):
     decision = check_drift_decision(
         project=bq_project,
         drift_log_table=drift_log_table,
-        concept_drift_log_table=concept_drift_log_table
+        concept_drift_log_table=concept_drift_log_table,
     )
 
     with dsl.If(decision.output == "RETRAIN"):
@@ -55,7 +60,7 @@ def daily_drift_check_and_retrain(
             project=bq_project,
             raw_data_table=raw_data_table,
             output_table=output_table,
-            feature_sql_gcs_uri=feature_sql_gcs_uri
+            feature_sql_gcs_uri=feature_sql_gcs_uri,
         )
 
         trigger_training_pipeline(
@@ -74,8 +79,7 @@ def daily_drift_check_and_retrain(
                 "bq_table": output_bq_table,
                 "selection_metric": selection_metric,
                 "gcs_project": gcs_project,
-                "export_bucket": export_bucket
+                "export_bucket": export_bucket,
             },
-            encryption_key=encryption_key
+            encryption_key=encryption_key,
         ).after(fe)
-

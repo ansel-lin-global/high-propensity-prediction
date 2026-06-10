@@ -127,7 +127,9 @@ This project implements **automatic retraining** triggered by **data or concept 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- [just](https://github.com/casey/just) — `brew install just`
 - GCP project with Vertex AI, BigQuery, and GCS enabled
 - Authenticated via `gcloud auth application-default login` or Workload Identity Federation
 
@@ -137,21 +139,39 @@ This project implements **automatic retraining** triggered by **data or concept 
 git clone https://github.com/ansel-lin-global/high-propensity-prediction.git
 cd high-propensity-prediction
 
-# Install dependencies
-pip install -r requirements.txt
+# Install all dependencies and set up git hooks
+just sync
+just hooks
 
 # Copy and fill in your configuration
 cp configs/example_pipeline_params.yaml configs/my_params.yaml
 # Edit configs/my_params.yaml with your GCP project details
 ```
 
+### Available `just` recipes
+
+```
+just sync          # Install all dependencies (uv sync --all-extras)
+just lint          # Run ruff linter
+just lint-fix      # Run ruff linter with auto-fix
+just fmt           # Format all files with ruff
+just fmt-check     # Check formatting without writing
+just test          # Run pytest
+just check         # Full pre-push gate: lint + fmt-check + test
+just hooks         # Install pre-commit hooks
+just hooks-run     # Run pre-commit on all files
+just compile       # Compile all pipelines to JSON specs in artifacts/
+just compile-only  # Compile a single pipeline, e.g.: just compile-only training
+just submit        # Submit a pipeline job to Vertex AI (pass --project etc.)
+```
+
 ### Compile & Submit a Pipeline
 ```bash
 # Compile a specific pipeline
-python scripts/compile_and_package.py --only training --out-dir artifacts
+just compile-only training
 
 # Submit to Vertex AI
-python scripts/submit_pipeline_job.py \
+just submit \
   --project <YOUR_PROJECT> \
   --region us-central1 \
   --staging-bucket gs://<YOUR_BUCKET> \

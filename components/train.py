@@ -5,14 +5,11 @@ All confidential data sources, paths, and logic have been sanitized
 for open-source showcasing.
 """
 
-from kfp.dsl import component, Dataset, Input, Output
-from typing import List
+from kfp.dsl import Dataset, Input, Output, component
+
 
 # === Component 1: split_data_by_time_series ===
-@component(
-    base_image="python:3.10",
-    packages_to_install=["pandas", "scikit-learn", "pyarrow"]
-)
+@component(base_image="python:3.10", packages_to_install=["pandas", "scikit-learn", "pyarrow"])
 def split_data_by_time_series(
     input_dataset: Input[Dataset],
     date_col: str,
@@ -23,8 +20,9 @@ def split_data_by_time_series(
     """
     Splits time series data into rolling train/test windows with a defined gap.
     """
-    import pandas as pd
     import pickle
+
+    import pandas as pd
 
     df = pd.read_parquet(input_dataset.path)
     df[date_col] = pd.to_datetime(df[date_col])
@@ -34,36 +32,32 @@ def split_data_by_time_series(
 
     for i in range(len(unique_dates) - gap - prediction_window + 1):
         train_end = unique_dates[i]
-        test_range = unique_dates[i + gap: i + gap + prediction_window]
+        test_range = unique_dates[i + gap : i + gap + prediction_window]
         train_idx = df[df[date_col] <= train_end].index
         test_idx = df[df[date_col].isin(test_range)].index
         splits.append((train_idx.tolist(), test_idx.tolist()))
 
-    with open(output_splits_path.path, 'wb') as f:
+    with open(output_splits_path.path, "wb") as f:
         pickle.dump(splits, f)
 
 
 # === Component 2: count_total_windows ===
-@component(
-    base_image="python:3.10",
-    packages_to_install=["pandas"]
-)
-def count_total_windows(
-    splits_path: Input[Dataset]
-) -> List[int]:
+@component(base_image="python:3.10", packages_to_install=["pandas"])
+def count_total_windows(splits_path: Input[Dataset]) -> list[int]:
     """
     Returns the number of split windows to enable iteration.
     """
     import pickle
-    with open(splits_path.path, 'rb') as f:
+
+    with open(splits_path.path, "rb") as f:
         splits = pickle.load(f)
     return list(range(len(splits)))
 
 
 # === Component 3: train_lgb_model ===
 @component(
-    base_image='python:3.10',
-    packages_to_install=['pandas', 'scikit-learn', 'lightgbm', 'joblib', 'pyarrow']
+    base_image="python:3.10",
+    packages_to_install=["pandas", "scikit-learn", "lightgbm", "joblib", "pyarrow"],
 )
 def train_lgb_model(
     X_train_path: Input[Dataset],
@@ -71,14 +65,15 @@ def train_lgb_model(
     X_valid_path: Input[Dataset],
     y_valid_path: Input[Dataset],
     cat: Input[Dataset],
-    model_output_path: Output[Dataset]
+    model_output_path: Output[Dataset],
 ):
     """
     Train a LightGBM classifier using class weighting and category-aware handling.
     """
-    import pandas as pd
-    import joblib
     import json
+
+    import joblib
+    import pandas as pd
     from lightgbm import LGBMClassifier, early_stopping, log_evaluation
 
     X_train = pd.read_parquet(X_train_path.path)
@@ -86,7 +81,7 @@ def train_lgb_model(
     X_valid = pd.read_parquet(X_valid_path.path)
     y_valid = pd.read_parquet(y_valid_path.path).squeeze()
 
-    with open(cat.path, 'r') as f:
+    with open(cat.path) as f:
         cat_cols = json.load(f)
 
     for col in cat_cols:
@@ -102,14 +97,15 @@ def train_lgb_model(
         learning_rate=0.05,
         num_leaves=64,
         scale_pos_weight=scale_pos_weight,
-        random_state=42
+        random_state=42,
     )
     model.fit(
-        X_train, y_train,
+        X_train,
+        y_train,
         eval_set=[(X_valid, y_valid)],
-        eval_metric='pr-auc',
+        eval_metric="pr-auc",
         categorical_feature=cat_cols,
-        callbacks=[early_stopping(30), log_evaluation(0)]
+        callbacks=[early_stopping(30), log_evaluation(0)],
     )
 
     joblib.dump(model, model_output_path.path)

@@ -1,0 +1,61 @@
+[project]
+name = "high-propensity-prediction"
+version = "0.1.0"
+description = "End-to-end MLOps system for high-intent purchase prediction on Vertex AI"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+authors = [{ name = "Ansel" }]
+
+dependencies = [
+    "kfp>=2.0",
+    "google-cloud-aiplatform[pipelines]>=1.38",
+    "google-cloud-bigquery>=3.0",
+    "google-cloud-bigquery-storage>=2.0",
+    "google-cloud-storage>=2.0",
+    "pandas>=2.0",
+    "pyarrow>=10.0",
+    "db-dtypes>=1.0",
+    "joblib>=1.2",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+# ML frameworks are installed by Vertex AI containers via packages_to_install.
+# Install locally only when you need to run components outside of a pipeline.
+ml = [
+    "lightgbm>=3.3",
+    "xgboost>=1.7",
+    "catboost>=1.2",
+    "scikit-learn>=1.2",
+    "imbalanced-learn>=0.11",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.3",
+    "pre-commit>=4.0",
+    "numpy>=1.24",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["components", "pipelines", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = [
+    "E501",  # line length handled by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]
+# Production-only components are intentionally commented out in sanitized pipeline files.
+"pipelines/*" = ["F821"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
