@@ -53,7 +53,10 @@ flowchart LR
 ```
 high-propensity-prediction/
 ├── README.md
-├── requirements.txt                  # All Python dependencies
+├── pyproject.toml                    # All dependencies + ruff/pytest config (replaces requirements.txt)
+├── uv.lock                           # Locked dependency graph (97 packages)
+├── justfile                          # Task runner: just sync / lint / test / compile / submit
+├── .pre-commit-config.yaml           # Pre-commit hooks: ruff + ruff-format + standard checks
 ├── LICENSE
 │
 ├── components/                       # Reusable Vertex AI Pipeline components
@@ -74,6 +77,10 @@ high-propensity-prediction/
 │   ├── compile_and_package.py        #   ↳ Compile pipelines to JSON specs
 │   └── submit_pipeline_job.py        #   ↳ Submit pipeline jobs to Vertex AI
 │
+├── tests/                            # Unit tests (pytest)
+│   ├── test_psi.py                   #   ↳ PSI drift calculation correctness
+│   └── test_time_splits.py           #   ↳ Rolling window split logic & leakage checks
+│
 ├── configs/                          # Configuration templates
 │   └── example_pipeline_params.yaml  #   ↳ Example params for all pipelines
 │
@@ -81,7 +88,8 @@ high-propensity-prediction/
 │   └── decisions.md                  # Key design decisions & rationale
 │
 ├── .github/workflows/
-│   └── deploy-vertex-ai.yml          # CI/CD: compile → submit on Vertex AI
+│   ├── ci.yml                        #   ↳ Lint + test on every push/PR
+│   └── deploy-vertex-ai.yml          #   ↳ Compile → submit to Vertex AI (manual trigger)
 │
 ├── .env.example                      # Required GitHub Secrets reference
 └── .gitignore
@@ -98,6 +106,7 @@ high-propensity-prediction/
 | **Pipeline SDK** | Kubeflow Pipelines (KFP v2) |
 | **CI/CD** | GitHub Actions + Workload Identity Federation |
 | **Monitoring** | Custom drift detection (PSI, recall degradation) |
+| **Dev Tooling** | uv (dependency management), ruff (lint + format), just (task runner), pytest, pre-commit |
 
 ---
 
